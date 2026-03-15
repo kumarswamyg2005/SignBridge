@@ -20,7 +20,11 @@ try:
         msasl_data = json.load(f)
         for item in msasl_data:
             word = item.get("clean_text", "").lower()
-            # We want short direct signs, avoid long multi-word mappings if possible
+            
+            # Skip known dead YouTube links from the MS-ASL dataset
+            if item.get("url", "") == "https://www.youtube.com/watch?v=Cgh1DXAQBuI":
+                continue
+                
             if word and word not in msasl_db:
                 msasl_db[word] = item
 except Exception as e:
