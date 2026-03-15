@@ -115,49 +115,59 @@ def process_sentence():
     # Apply auto-correct in case of typos
     corrected_sentence = spell(expanded_sentence)
     
-    words = "".join([c if c.isalnum() or c.isspace() else "" for c in corrected_sentence]).split()
+    words_list = "".join([c if c.isalnum() or c.isspace() else "" for c in corrected_sentence]).split()
     
     language = data.get('language', 'asl').lower()
     target_dir = os.path.join(GESTURES_DIR, language)
     
+    # Improved greedy N-gram matcher to catch phrases like "thank you"
     queue = []
-    for word in words:
-        video_path = os.path.join(target_dir, f"{word}.mp4")
-        
-        letters = list(word)
-        fallback_videos = [f"/static/gestures/{language}/{char}.mp4" for char in letters if char.isalpha()]
-        fallback_images = [f"/static/gestures/alphabets_images/{char.upper()}.jpg" for char in letters if char.isalpha()]
-        
-        if os.path.exists(video_path):
-            queue.append({
-                "word": word,
-                "type": "word",
-                "video": f"/static/gestures/{language}/{word}.mp4",
-                "fallback_videos": fallback_videos,
-                "fallback_images": fallback_images
-            })
-        elif word in msasl_db:
-            # Fallback to MS-ASL YouTube video
-            ms_entry = msasl_db[word]
-            url: str = ms_entry["url"]
-            video_id = url.split("v=")[-1] if "v=" in url else url.split("/")[-1]
+    i = 0
+    while i < len(words_list):
+        found_match = False
+        # Try finding the longest possible matching phrase first (up to length of remaining words)
+        for j in range(len(words_list), i, -1):
+            phrase = " ".join(words_list[i:j])
             
-            # Pack fingerspelling fallbacks inside the youtube queue item 
-            # in case the YouTube video is private or deleted
-            letters = list(word)
+            video_path = os.path.join(target_dir, f"{phrase}.mp4")
+            
+            # We must strip spaces from phrase for fallback letters
+            letters = list(phrase.replace(" ", ""))
             fallback_videos = [f"/static/gestures/{language}/{char}.mp4" for char in letters if char.isalpha()]
             fallback_images = [f"/static/gestures/alphabets_images/{char.upper()}.jpg" for char in letters if char.isalpha()]
-            
-            queue.append({
-                "word": word,
-                "type": "youtube",
-                "video_id": video_id,
-                "start": ms_entry.get("start_time", 0),
-                "end": ms_entry.get("end_time", 0),
-                "fallback_videos": fallback_videos,
-                "fallback_images": fallback_images
-            })
-        else:
+
+            if os.path.exists(video_path):
+                queue.append({
+                    "word": phrase,
+                    "type": "word",
+                    "video": f"/static/gestures/{language}/{phrase}.mp4",
+                    "fallback_videos": fallback_videos,
+                    "fallback_images": fallback_images
+                })
+                i = j
+                found_match = True
+                break
+            elif phrase in msasl_db:
+                ms_entry = msasl_db[phrase]
+                url: str = ms_entry["url"]
+                video_id = url.split("v=")[-1] if "v=" in url else url.split("/")[-1]
+                
+                queue.append({
+                    "word": phrase,
+                    "type": "youtube",
+                    "video_id": video_id,
+                    "start": ms_entry.get("start_time", 0),
+                    "end": ms_entry.get("end_time", 0),
+                    "fallback_videos": fallback_videos,
+                    "fallback_images": fallback_images
+                })
+                i = j
+                found_match = True
+                break
+                
+        if not found_match:
+            # If no known word or phrase is found, fallback to fingerspelling a single word
+            word = words_list[i]
             letters = list(word)
             videos = [f"/static/gestures/{language}/{char}.mp4" for char in letters if char.isalpha()]
             images = [f"/static/gestures/alphabets_images/{char.upper()}.jpg" for char in letters if char.isalpha()]
@@ -168,6 +178,7 @@ def process_sentence():
                 "videos": videos,
                 "images": images
             })
+            i += 1
             
     return jsonify({"queue": queue, "corrected_sentence": corrected_sentence})
 
