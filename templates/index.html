@@ -15,6 +15,7 @@
 
     <!-- Confetti -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="https://www.youtube.com/iframe_api"></script>
 
     <style>
         /* Exact Color Palette */
@@ -466,6 +467,33 @@
             object-fit: cover;
             opacity: 0;
             transition: opacity 0.3s ease;
+        }
+
+        #gestureImage {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            position: absolute;
+            top: 0;
+            left: 0;
+            background: var(--bg-surface);
+            z-index: 3;
+            display: none;
+        }
+
+        #youtubePlayer {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 3;
+            display: none;
+            border: none;
         }
 
         .idle-state {
@@ -1161,6 +1189,8 @@
 
                         <!-- Actual Video -->
                         <video id="gestureVideo" playsinline preload="auto"></video>
+                        <img id="gestureImage" alt="Sign gesture" />
+                        <div id="youtubePlayer"></div>
                     </div>
                 </div>
 
@@ -1343,7 +1373,25 @@
             container.appendChild(newEl);
         }
 
-        // --- 2. Video Engine ---
+        // --- 2. Video Engine & YouTube ---
+        let ytPlayer = null;
+        let ytEndTimer = null;
+        function onYouTubeIframeAPIReady() {
+            ytPlayer = new YT.Player('youtubePlayer', {
+                height: '100%',
+                width: '100%',
+                playerVars: {
+                    'autoplay': 0, 'controls': 0, 'disablekb': 1,
+                    'modestbranding': 1, 'rel': 0, 'showinfo': 0, 'iv_load_policy': 3
+                },
+                events: {
+                    'onStateChange': (e) => {
+                        window.dispatchEvent(new CustomEvent('ytStateChange', { detail: e }));
+                    }
+                }
+            });
+        }
+
         class VideoQueue {
             constructor() {
                 this.queue = [];
@@ -1353,6 +1401,8 @@
 
                 this.outerEl = document.getElementById('videoOuter');
                 this.videoEl = document.getElementById('gestureVideo');
+                this.imageEl = document.getElementById('gestureImage');
+                this.youtubeContainerEl = document.getElementById('youtubePlayer');
                 this.idleEl = document.getElementById('videoIdleState');
 
                 this.wordBar = document.getElementById('wordBar');
@@ -1365,6 +1415,31 @@
                 this.videoEl.onended = () => {
                     if (!this.isPaused) this.handleVideoEnd();
                 };
+
+                window.addEventListener('ytStateChange', (e) => {
+                    if (e.detail.data === YT.PlayerState.PLAYING) {
+                        const item = this.queue[this.currentIndex];
+                        if (item && item.type === 'youtube' && item.end) {
+                            const duration = (item.end - item.start) * 1000;
+                            clearTimeout(ytEndTimer);
+                            ytEndTimer = setTimeout(() => {
+                                ytPlayer.pauseVideo();
+                                if (!this.isPaused) this.handleVideoEnd();
+                            }, duration / this.speed);
+                        }
+                    } else if (e.detail.data === YT.PlayerState.ENDED) {
+                        if (!this.isPaused) this.handleVideoEnd();
+                    }
+                });
+            }
+
+            hideAllMedia() {
+                this.videoEl.style.opacity = '0';
+                this.videoEl.style.display = 'none';
+                this.imageEl.style.opacity = '0';
+                this.imageEl.style.display = 'none';
+                this.youtubeContainerEl.style.opacity = '0';
+                this.youtubeContainerEl.style.pointerEvents = 'none';
             }
 
             loadSentence(queueData) {
@@ -1390,10 +1465,14 @@
             changeSpeed(newSpeed) {
                 this.speed = parseFloat(newSpeed);
                 this.videoEl.playbackRate = this.speed;
+                if (ytPlayer && typeof ytPlayer.setPlaybackRate === 'function') {
+                    ytPlayer.setPlaybackRate(this.speed);
+                }
             }
 
             playNext() {
                 if (this.isPaused) return;
+                clearTimeout(ytEndTimer);
 
                 if (this.currentIndex >= this.queue.length) {
                     this.onAllDone();
@@ -1408,10 +1487,14 @@
                     updateStatus(`🤟 Signing word...`);
                     this.currentWordDisplay.innerText = item.word.toUpperCase();
                     this.playSource(item.video);
+                } else if (item.type === 'youtube') {
+                    updateStatus(`🎥 Loading MS-ASL...`);
+                    this.currentWordDisplay.innerText = item.word.toUpperCase();
+                    this.playYouTube(item);
                 } else if (item.type === 'fingerspell') {
                     updateStatus(`✋ Fingerspelling...`);
                     this.currentWordDisplay.innerText = item.word.toUpperCase();
-                    this.playFingerspell(item.videos, 0);
+                    this.playFingerspell(item, 0);
                 }
             }
 
@@ -1420,7 +1503,9 @@
                 this.outerEl.classList.add('playing');
                 this.currentWordDisplay.classList.add('active');
 
-                this.videoEl.style.opacity = '0';
+                this.hideAllMedia();
+                this.videoEl.style.display = 'block';
+                
                 setTimeout(() => {
                     this.videoEl.src = src;
                     this.videoEl.playbackRate = this.speed;
@@ -1433,8 +1518,39 @@
                 }, 150); // fast crossfade
             }
 
-            playFingerspell(videos, idx) {
+            playYouTube(item) {
+                this.idleEl.style.opacity = '0';
+                this.outerEl.classList.add('playing');
+                this.currentWordDisplay.classList.add('active');
+
+                this.hideAllMedia();
+                this.youtubeContainerEl.style.opacity = '1';
+
+                if (ytPlayer && ytPlayer.loadVideoById) {
+                    ytPlayer.loadVideoById({
+                        videoId: item.video_id,
+                        startSeconds: item.start
+                    });
+                    if (typeof ytPlayer.setPlaybackRate === 'function') ytPlayer.setPlaybackRate(this.speed);
+                    
+                    if (!item.end) {
+                        // If no end time, wait 3 seconds and skip (guard)
+                        ytEndTimer = setTimeout(() => {
+                            if (!this.isPaused) this.handleVideoEnd();
+                        }, 3000 / this.speed);
+                    }
+                } else {
+                    updateStatus(`⏭️ Skipping (YouTube API not ready)`);
+                    setTimeout(() => this.handleVideoEnd(), 800);
+                }
+            }
+
+            playFingerspell(item, idx) {
                 if (this.isPaused) return;
+                
+                const videos = item.videos || [];
+                const images = item.images || [];
+                
                 if (idx >= videos.length) {
                     this.handleVideoEnd();
                     return;
@@ -1444,18 +1560,34 @@
                 this.outerEl.classList.add('playing');
                 this.currentWordDisplay.classList.add('active');
 
-                this.videoEl.style.opacity = '0';
+                this.hideAllMedia();
+                this.videoEl.style.display = 'block';
+
                 setTimeout(() => {
                     this.videoEl.src = videos[idx];
                     this.videoEl.playbackRate = this.speed * 1.5; // Fingerspelling goes 1.5x faster
                     // For fingerspelling, we override standard loop
                     this.videoEl.onended = () => {
-                        if (!this.isPaused) this.playFingerspell(videos, idx + 1);
+                        if (!this.isPaused) this.playFingerspell(item, idx + 1);
                     };
                     this.videoEl.play().then(() => {
                         this.videoEl.style.opacity = '1';
                     }).catch(e => {
-                        this.playFingerspell(videos, idx + 1);
+                        // Video failed, try Image fallback
+                        if (images[idx]) {
+                            this.videoEl.style.display = 'none';
+                            this.imageEl.style.display = 'block';
+                            this.imageEl.src = images[idx];
+                            this.imageEl.style.opacity = '1';
+                            
+                            // Keep image on screen for X ms based on speed
+                            setTimeout(() => {
+                                this.imageEl.style.opacity = '0';
+                                if (!this.isPaused) this.playFingerspell(item, idx + 1);
+                            }, 1000 / (this.speed * 1.5));
+                        } else {
+                            this.playFingerspell(item, idx + 1);
+                        }
                     });
                 }, 100);
             }
@@ -1463,6 +1595,8 @@
             handleVideoEnd() {
                 // Return original event handler for next native standard video loop
                 this.videoEl.onended = () => { if (!this.isPaused) this.handleVideoEnd(); };
+                if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+                clearTimeout(ytEndTimer);
 
                 // Mark previous as completed
                 const pill = document.getElementById(`pill-${this.currentIndex}`);
@@ -1478,8 +1612,22 @@
                 setTimeout(() => this.playNext(), 300);
             }
 
-            pause() { this.isPaused = true; this.videoEl.pause(); this.outerEl.classList.remove('playing'); }
-            resume() { this.isPaused = false; this.videoEl.play(); this.outerEl.classList.add('playing'); }
+            pause() { 
+                this.isPaused = true; 
+                this.videoEl.pause(); 
+                if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+                clearTimeout(ytEndTimer);
+                this.outerEl.classList.remove('playing'); 
+            }
+            resume() { 
+                this.isPaused = false; 
+                if (this.queue[this.currentIndex] && this.queue[this.currentIndex].type === 'youtube') {
+                    if (ytPlayer && ytPlayer.playVideo) ytPlayer.playVideo();
+                } else {
+                    this.videoEl.play(); 
+                }
+                this.outerEl.classList.add('playing'); 
+            }
             replay() {
                 document.querySelectorAll('.word-pill').forEach(p => {
                     p.classList.remove('active', 'completed');
@@ -1502,7 +1650,7 @@
             }
 
             onAllDone() {
-                this.videoEl.style.opacity = '0';
+                this.hideAllMedia();
                 this.outerEl.classList.remove('playing');
                 this.currentWordDisplay.classList.remove('active');
                 setTimeout(() => { this.idleEl.style.opacity = '1'; }, 300);
