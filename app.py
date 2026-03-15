@@ -4,6 +4,7 @@ from flask import Flask, request, jsonify, render_template, send_from_directory
 from flask_cors import CORS
 import speech_recognition as sr
 from autocorrect import Speller
+import threading
 
 app = Flask(__name__)
 CORS(app)
@@ -11,6 +12,19 @@ spell = Speller(lang='en')
 
 # Settings
 GESTURES_DIR = os.path.join(os.path.dirname(os.path.abspath(__name__)), 'static', 'gestures')
+
+# Load MS-ASL Mapping as Fallback
+msasl_db = {}
+try:
+    with open(os.path.join("MS-ASL", "MSASL_train.json"), "r") as f:
+        msasl_data = json.load(f)
+        for item in msasl_data:
+            word = item.get("clean_text", "").lower()
+            # We want short direct signs, avoid long multi-word mappings if possible
+            if word and word not in msasl_db:
+                msasl_db[word] = item
+except Exception as e:
+    print(f"Warning: MS-ASL dataset not found or failed to load: {e}")
 
 @app.route('/')
 def index():
@@ -115,14 +129,37 @@ def process_sentence():
                 "type": "word",
                 "video": f"/static/gestures/{language}/{word}.mp4"
             })
+        elif word in msasl_db:
+            # Fallback to MS-ASL YouTube video
+            ms_entry = msasl_db[word]
+            url: str = ms_entry["url"]
+            video_id = url.split("v=")[-1] if "v=" in url else url.split("/")[-1]
+            
+            # Pack fingerspelling fallbacks inside the youtube queue item 
+            # in case the YouTube video is private or deleted
+            letters = list(word)
+            fallback_videos = [f"/static/gestures/{language}/{char}.mp4" for char in letters if char.isalpha()]
+            fallback_images = [f"/static/gestures/alphabets_images/{char.upper()}.jpg" for char in letters if char.isalpha()]
+            
+            queue.append({
+                "word": word,
+                "type": "youtube",
+                "video_id": video_id,
+                "start": ms_entry.get("start_time", 0),
+                "end": ms_entry.get("end_time", 0),
+                "fallback_videos": fallback_videos,
+                "fallback_images": fallback_images
+            })
         else:
             letters = list(word)
             videos = [f"/static/gestures/{language}/{char}.mp4" for char in letters if char.isalpha()]
+            images = [f"/static/gestures/alphabets_images/{char.upper()}.jpg" for char in letters if char.isalpha()]
             queue.append({
                 "word": word,
                 "type": "fingerspell",
                 "letters": letters,
-                "videos": videos
+                "videos": videos,
+                "images": images
             })
             
     return jsonify({"queue": queue, "corrected_sentence": corrected_sentence})

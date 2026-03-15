@@ -1427,7 +1427,7 @@
                         if (item && item.type === 'youtube' && item.end && item.end > item.start) {
                             duration = (item.end - item.start) * 1000;
                         }
-                        
+
                         ytEndTimer = setTimeout(() => {
                             if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
                             if (!this.isPaused) this.handleVideoEnd();
@@ -1440,8 +1440,17 @@
 
                 window.addEventListener('ytError', (e) => {
                     console.error("YouTube Player Error:", e.detail.data);
-                    updateStatus(`⏭️ Skipping (video unavailable)`);
-                    if (!this.isPaused) setTimeout(() => this.handleVideoEnd(), 800);
+                    clearTimeout(ytEndTimer);
+                    if (!this.isPaused) {
+                        const item = this.queue[this.currentIndex];
+                        if (item && item.type === 'youtube' && item.fallback_videos && item.fallback_videos.length > 0) {
+                            updateStatus(`⚠️ Video unavailable. Fingerspelling...`);
+                            this.playFingerspell({ videos: item.fallback_videos, images: item.fallback_images }, 0);
+                        } else {
+                            updateStatus(`⏭️ Skipping (video unavailable)`);
+                            setTimeout(() => this.handleVideoEnd(), 800);
+                        }
+                    }
                 });
             }
 
@@ -1557,8 +1566,15 @@
                     // Initial timeout: If video doesn't play within 5s, skip it.
                     clearTimeout(ytEndTimer);
                     ytEndTimer = setTimeout(() => {
-                        updateStatus(`⏭️ Skipping (video taking too long)`);
-                        if (!this.isPaused) this.handleVideoEnd();
+                        if (!this.isPaused) {
+                            if (item && item.fallback_videos && item.fallback_videos.length > 0) {
+                                updateStatus(`⚠️ Video stalled. Fingerspelling...`);
+                                this.playFingerspell({ videos: item.fallback_videos, images: item.fallback_images }, 0);
+                            } else {
+                                updateStatus(`⏭️ Skipping (video taking too long)`);
+                                this.handleVideoEnd();
+                            }
+                        }
                     }, 5000);
                 } else {
                     updateStatus(`⏭️ Skipping (YouTube API not ready)`);
