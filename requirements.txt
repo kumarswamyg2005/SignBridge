@@ -1,0 +1,11 @@
+flask
+flask-cors
+SpeechRecognition
+pyttsx3
+opencv-python
+numpy
+antigravity
+pyaudio
+Pillow
+requests
+autocorrect
