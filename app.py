@@ -112,32 +112,69 @@ def process_sentence():
         "it's": "it is", "its": "it is"
     }
     
-    # Map common daily synonyms to target their core ASL dictionary counterparts
+    # Map common daily synonyms, slang, and abbreviations to their core ASL dictionary equivalents
     synonyms = {
-        "thank": "thank you",
-        "thanks": "thank you",
-        "hi": "hello",
-        "hey": "hello",
-        "greetings": "hello",
-        "bye": "goodbye",
-        "yeah": "yes",
-        "yep": "yes",
-        "yup": "yes",
-        "nah": "no",
-        "nope": "no",
-        "pls": "please",
-        "ok": "okay",
-        "photo": "picture",
-        "pic": "picture",
-        "tv": "television",
-        "gym": "gymnasium",
-        "lab": "laboratory",
+        # Greetings & Politeness
+        "thank": "thank you", "thanks": "thank you", "thx": "thank you", "ty": "thank you",
+        "hi": "hello", "hey": "hello", "greetings": "hello", "welcome": "hello",
+        "bye": "goodbye", "cya": "goodbye", "seeya": "goodbye", "farewell": "goodbye",
+        "pls": "please", "plz": "please",
+        "sry": "sorry", "apologies": "sorry",
+        "ok": "okay", "k": "okay", "sure": "okay", "alright": "okay",
+
+        # Affirmation & Negation
+        "yeah": "yes", "yep": "yes", "yup": "yes", "ya": "yes", "yea": "yes",
+        "nah": "no", "nope": "no", "nay": "no",
+
+        # Family & People
+        "dad": "father", "daddy": "father", "papa": "father", "pop": "father",
+        "mom": "mother", "mommy": "mother", "mama": "mother", "ma": "mother",
+        "grandpa": "grandfather", "granddad": "grandfather", 
+        "grandma": "grandmother", "granny": "grandmother",
+        "kid": "child", "kiddo": "child", "kids": "children",
+        "bro": "brother", "sis": "sister",
+        "babe": "baby", "infant": "baby",
+        "cop": "police", "officer": "police", "cops": "police",
+
+        # Everyday Objects & Places
+        "photo": "picture", "pic": "picture", "photograph": "picture",
+        "tv": "television", "telly": "television",
+        "gym": "gymnasium", 
+        "lab": "laboratory", 
         "math": "mathematics",
-        "dad": "father",
-        "mom": "mother",
-        "grandpa": "grandfather",
-        "grandma": "grandmother",
-        "cop": "police"
+        "car": "automobile", "auto": "automobile", 
+        "house": "home",
+        "cell": "phone", "cellphone": "phone", "mobile": "phone",
+        "fridge": "refrigerator",
+        "uni": "university", "college": "university",
+
+        # Common Actions
+        "chat": "talk", "speak": "talk",
+        "stroll": "walk", "jog": "run",
+        "look": "see", "watch": "see",
+        "listen": "hear",
+        "require": "need", "desire": "want",
+        "build": "make", "create": "make",
+        "acquire": "get", "obtain": "get",
+        "assist": "help",
+        "halt": "stop", "pause": "stop",
+        "begin": "start",
+        "end": "finish", "done": "finish",
+        "luv": "love",
+
+        # Descriptors
+        "huge": "big", "large": "big", "giant": "big",
+        "tiny": "small", "little": "small",
+        "great": "good", "awesome": "good", "excellent": "good",
+        "terrible": "bad", "awful": "bad",
+        "glad": "happy", "joyful": "happy",
+        "upset": "sad", "depressed": "sad",
+        "quick": "fast", "rapid": "fast",
+        "pretty": "beautiful", "gorgeous": "beautiful",
+
+        # Time & Food
+        "tmrw": "tomorrow", "yday": "yesterday", "everyday": "daily",
+        "burger": "hamburger", "fries": "french fries", "veggies": "vegetables", "soda": "drink"
     }
     
     words_split = original_sentence.split()
