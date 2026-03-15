@@ -123,11 +123,18 @@ def process_sentence():
     queue = []
     for word in words:
         video_path = os.path.join(target_dir, f"{word}.mp4")
+        
+        letters = list(word)
+        fallback_videos = [f"/static/gestures/{language}/{char}.mp4" for char in letters if char.isalpha()]
+        fallback_images = [f"/static/gestures/alphabets_images/{char.upper()}.jpg" for char in letters if char.isalpha()]
+        
         if os.path.exists(video_path):
             queue.append({
                 "word": word,
                 "type": "word",
-                "video": f"/static/gestures/{language}/{word}.mp4"
+                "video": f"/static/gestures/{language}/{word}.mp4",
+                "fallback_videos": fallback_videos,
+                "fallback_images": fallback_images
             })
         elif word in msasl_db:
             # Fallback to MS-ASL YouTube video
