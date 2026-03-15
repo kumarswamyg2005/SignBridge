@@ -112,6 +112,34 @@ def process_sentence():
         "it's": "it is", "its": "it is"
     }
     
+    # Map common daily synonyms to target their core ASL dictionary counterparts
+    synonyms = {
+        "thank": "thank you",
+        "thanks": "thank you",
+        "hi": "hello",
+        "hey": "hello",
+        "greetings": "hello",
+        "bye": "goodbye",
+        "yeah": "yes",
+        "yep": "yes",
+        "yup": "yes",
+        "nah": "no",
+        "nope": "no",
+        "pls": "please",
+        "ok": "okay",
+        "photo": "picture",
+        "pic": "picture",
+        "tv": "television",
+        "gym": "gymnasium",
+        "lab": "laboratory",
+        "math": "mathematics",
+        "dad": "father",
+        "mom": "mother",
+        "grandpa": "grandfather",
+        "grandma": "grandmother",
+        "cop": "police"
+    }
+    
     words_split = original_sentence.split()
     expanded_words = [contractions.get(w, w) for w in words_split]
     expanded_sentence = " ".join(expanded_words)
@@ -131,7 +159,10 @@ def process_sentence():
         found_match = False
         # Try finding the longest possible matching phrase first (up to length of remaining words)
         for j in range(len(words_list), i, -1):
-            phrase = " ".join(words_list[i:j])
+            raw_phrase = " ".join(words_list[i:j])
+            
+            # Sub-in global dictionary synonyms (e.g. "thanks" -> "thank you")
+            phrase = synonyms.get(raw_phrase, raw_phrase)
             
             video_path = os.path.join(target_dir, f"{phrase}.mp4")
             
